@@ -13,7 +13,6 @@ const App = () => {
     setCurrentPage('piano');
   };
 
-
   const handleBackPress = () => {
     setCurrentPage('introduction');
   };

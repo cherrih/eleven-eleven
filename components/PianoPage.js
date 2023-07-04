@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TouchableHighlight, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TouchableHighlight, TouchableWithoutFeedback } from 'react-native';
+import Sound from 'react-native-sound';
 
 const PianoPage = ({ navigation }) => {
   const [activeKeys, setActiveKeys] = useState([]);
+  const [mouseIsDown, setMouseIsDown] = useState(false);
   const dataNotes = [
     "C",
     "Db",
@@ -16,73 +18,118 @@ const PianoPage = ({ navigation }) => {
     "A",
     "Bb",
     "B",
-    "%2BC",
-    "%2BDb",
-    "%2BD",
-    "%2BEb",
-    "%2BE"
+    "+C",
+    "+Db",
+    "+D",
+    "+Eb",
+    "+E"
   ];
 
+  const playKeySound = (key) => {
+    const soundFilePath = `assets/sounds/${key}.wav`;
+    const keySound = new Sound(soundFilePath, Sound.MAIN_BUNDLE);
+    keySound.play((success) => {
+      if (success) {
+        // Playback successful
+        keySound.release();
+      } else {
+        // Error occurred during playback
+        console.warn('Error playing key sound');
+      }
+    });
+  };
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: (evt, gestureState) => {
+      const key = getKeyFromEvent(evt);
+      activateKey(key);
+    },
+    onPanResponderRelease: (evt, gestureState) => {
+      const key = getKeyFromEvent(evt);
+      deactivateKey(key);
+    },
+    onPanResponderMove: (evt, gestureState) => {
+      const key = getKeyFromEvent(evt);
+      const isPressing = isPressingKey(evt);
+      if (isPressing) {
+        activateKey(key);
+      } else {
+        deactivateKey(key);
+      }
+    },
+  });
+
+  const getKeyFromEvent = (evt) => {
+    // Get the key from the event
+    // Modify this based on your actual implementation
+    return evt.target.getAttribute('data-key');
+  };
+
+  const isPressingKey = (evt) => {
+    // Check if the user is pressing on the key
+    // Modify this based on your actual implementation
+    return evt.target.getAttribute('data-pressing') === 'true';
+  };
 
   const renderPianoKey = (key, isBlackKey) => {
     const {
-      blackKey, activeKey, whiteKey
+      blackKey, activeKey, whiteKey, keyBase
     } = styles;
     const keyStyle = isBlackKey ? blackKey : whiteKey;
     const isActive = activeKeys.includes(key);
 
-    const touchEvents = Platform.OS === 'web'
-      ? {
-          onMouseDown: () => handleKeyPressIn(key),
-          onMouseUp: () => handleKeyPressOut(key),
-          onMouseEnter: () => handleMouseEnter(key),
-          onMouseLeave: () => handleMouseLeave(key),
-        }
-      : {
-          onPressIn: () => handleKeyPressIn(key),
-          onPressOut: () => handleKeyPressOut(key),
-        };
+    const touchEvents = {
+      onMouseDown: () => handleMouseDown(key),
+      onMouseUp: () => handleMouseUp(key),
+      onMouseEnter: () => handleMouseEnter(key),
+      onMouseLeave: () => handleMouseLeave(key),
+      onPressIn: () => activateKey(key),
+      onPressOut: () => deactivateKey(key),
+    };
 
     return (
-      <TouchableHighlight
+      <TouchableOpacity
         key={key}
-        style={[keyStyle, isActive && activeKey]}
         {...touchEvents}
-      >
-        <Text style={styles.keyText}>{key}</Text>
-      </TouchableHighlight>
+        style={[keyBase, keyStyle, isActive && activeKey]}
+        activeOpacity={1}
+        >
+          <Text style={styles.keyText}>{key}</Text>
+      </TouchableOpacity>
     );
   };
 
   const activateKey = (key) => {
-
+    if (activeKeys.includes(key)) return;
+    setActiveKeys((prevKeys) => [...prevKeys, key]);
+    playKeySound(key);
   }
 
   const deactivateKey = (key) => {
-
+    setActiveKeys((prevKeys) => prevKeys.filter((k) => k !== key));
+  }
+  const handleMouseDown = (key) => {
+    setMouseIsDown(true);
+    activateKey(key);
   }
 
-  const handleKeyPressIn = (key) => {
-    console.log("PRESS")
-    setActiveKeys((prevKeys) => [...prevKeys, key]);
-  };
-
-  const handleKeyPressOut = () => {
-    console.log("PRESS OUT")
-    setActiveKeys([]);
-  };
+  const handleMouseUp = (key) => {
+    setMouseIsDown(false);
+    deactivateKey(key);
+  }
 
   const handleMouseEnter = (key) => {
-    if (activeKeys.length === 1 && activeKeys[0] !== key) {
-      setActiveKeys([key]);
+    if (mouseIsDown) {
+      activateKey(key);
     }
   };
 
   const handleMouseLeave = (key) => {
-    if (activeKeys.length === 1 && activeKeys[0] === key) {
-      setActiveKeys([]);
+    if (mouseIsDown) {
+      deactivateKey(key);
     }
-  };
+  }
 
   return (
     <View style={styles.container}>
@@ -100,7 +147,7 @@ const PianoPage = ({ navigation }) => {
       </View>
 
       {/* Piano Keyboard */}
-      <View style={styles.pianoContainer}>
+      <View style={styles.pianoContainer} {...panResponder.panHandlers}>
         {dataNotes.map(note =>
           renderPianoKey(note, note.includes('b'))
         )}
@@ -129,17 +176,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     display: 'flex',
   },
-  whiteKey: {
+  keyBase: {
     flex: 1,
+  },
+  whiteKey: {
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#000',
     borderTopWidth: 2,
     borderRightWidth: 1,
+    backgroundColor: "#FFF"
   },
   blackKey: {
-    flex: 1,
     backgroundColor: '#000',
     zIndex: 1,
   },
@@ -150,6 +199,7 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 12,
     fontWeight: 'bold',
+    pointerEvents: 'none'
   },
 });
 
